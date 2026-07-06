@@ -11,11 +11,24 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-import cv2
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageGrab, ImageTk
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+
+DEPENDENCY_ERROR = None
+
+try:
+    import cv2
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont, ImageGrab, ImageTk
+except Exception as exc:
+    cv2 = None
+    np = None
+    Image = None
+    ImageDraw = None
+    ImageFont = None
+    ImageGrab = None
+    ImageTk = None
+    DEPENDENCY_ERROR = exc
 
 try:
     import pystray
@@ -872,6 +885,22 @@ def main():
     parser.add_argument("--test", action="store_true", help="Send a Discord test notification and exit.")
     parser.add_argument("--launch-wow", action="store_true", help="Launch World of Warcraft or Battle.net and exit.")
     args = parser.parse_args()
+
+    if DEPENDENCY_ERROR is not None:
+        message = (
+            "Queue Ringer is missing Python packages.\n\n"
+            "Run Start Queue Ringer.bat and let it install requirements, or run:\n"
+            "py -3 -m pip install -r requirements.txt\n\n"
+            f"Original error:\n{DEPENDENCY_ERROR}"
+        )
+        if args.test or args.launch_wow:
+            print(message)
+        else:
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror(APP_TITLE, message)
+            root.destroy()
+        return
 
     try:
         config = load_config()
