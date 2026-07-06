@@ -38,6 +38,7 @@ except Exception:
 
 SCRIPT_DIR = os.path.dirname(__file__)
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
+CONFIG_EXAMPLE_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 STATE_PATH = os.path.join(SCRIPT_DIR, "state.json")
 APP_TITLE = "BenTools Queue Ringer"
 WOW_TITLE_HINT = "World of Warcraft"
@@ -72,9 +73,14 @@ def mask_webhook(url):
 def load_config():
     config = load_json(CONFIG_PATH, None)
     if config is None:
-        raise FileNotFoundError(
-            f"Missing config file: {CONFIG_PATH}. Copy config.example.json to config.json and fill it in."
-        )
+        example = load_json(CONFIG_EXAMPLE_PATH, None)
+        if example is not None:
+            save_json(CONFIG_PATH, example)
+            config = load_json(CONFIG_PATH, None)
+        if config is None:
+            raise FileNotFoundError(
+                f"Missing config file: {CONFIG_PATH}. Copy config.example.json to config.json and fill it in."
+            )
     config.setdefault("enabled", True)
     config.setdefault("discordWebhookUrl", "")
     config.setdefault("mention", "")
