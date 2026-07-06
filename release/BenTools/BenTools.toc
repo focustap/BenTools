@@ -1,0 +1,23 @@
+## Interface: 120007
+## Title: BenTools
+## Notes: Utility tools for vendor selling, Mythic+ group finding, and queue notifications.
+## Author: Codex
+## Version: 1.0.0
+## SavedVariables: BenToolsDB
+
+Database.lua
+Utils.lua
+Rules.lua
+Scanner.lua
+Merchant.lua
+Repair.lua
+QueueRinger.lua
+MythicPlusFinderFilters.lua
+MythicPlusFinderRanking.lua
+MythicPlusFinderApplications.lua
+MythicPlusFinder.lua
+MythicPlusFinderUI.lua
+ContextMenu.lua
+Settings.lua
+MainWindow.lua
+Core.lua

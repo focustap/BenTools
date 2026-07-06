@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "discordWebhookUrl": "",
+  "mention": "",
+  "pollIntervalMs": 350,
+  "cooldownSeconds": 45,
+  "matchThreshold": 0.88,
+  "confirmFrames": 2,
+  "saveDebugFrame": false,
+  "startWithWindows": false,
+  "startWatchingAutomatically": false,
+  "startMinimized": false,
+  "gameLauncherPath": ""
+}
