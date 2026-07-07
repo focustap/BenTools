@@ -67,6 +67,9 @@ function ns.QueueRinger:EnsureConfig()
     if not self.activeSignatures then
         self.activeSignatures = {}
     end
+    if not self.recentProposalTimestamps then
+        self.recentProposalTimestamps = {}
+    end
 
     local config = ns.db and ns.db.queueRinger
     if not config then
@@ -313,18 +316,18 @@ function ns.QueueRinger:HandleProposalShow()
         return
     end
 
-    if self.currentLFGProposalID and self.currentLFGProposalID ~= proposalID then
-        ClearMatchingKeys(self.activeSignatures, "lfg:")
-    end
-
     local queueType = queueName or "Dungeon/Raid Finder"
     local signature = string.format("lfg:%s:%s:%s:%s", tostring(proposalID), tostring(proposalTypeID), tostring(subtypeID), tostring(queueType))
-    if self.currentLFGProposalID == proposalID and self.activeSignatures[signature] then
-        Debug("Duplicate LFG proposal ignored for proposalID " .. tostring(proposalID))
+    local now = GetUnixTime()
+    local recentAt = self.recentProposalTimestamps[signature]
+    if recentAt and (now - recentAt) < 15 then
+        Debug("Duplicate LFG proposal ignored for signature " .. signature)
         return
     end
 
+    ClearMatchingKeys(self.activeSignatures, "lfg:")
     self.currentLFGProposalID = proposalID
+    self.recentProposalTimestamps[signature] = now
     Debug("State transition WAITING -> READY for " .. queueType)
     self:NotifyReady(signature, queueType, "LFG_PROPOSAL_SHOW", false)
 end
