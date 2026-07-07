@@ -96,29 +96,21 @@ function ns.Core:ClearRules()
 end
 
 function ns.Core:MarkMouseoverNever()
-    local focus = GetMouseFoci and GetMouseFoci()
-    local button = focus and focus[1] or GetMouseFocus()
-    if not button or not button.GetBagID or not button.GetID then
-        ns.Utils:Print("Mouse over a bag item first.")
+    local itemLink = ns.Utils:GetMouseoverItemLink()
+    local itemID = ns.Utils:GetItemIDFromLink(itemLink)
+    if not itemID then
+        ns.Utils:Print("Mouse over an item first.")
         return
     end
 
-    local bag, slot = button:GetBagID(), button:GetID()
-    if not ns.Utils:IsNormalBag(bag) then
-        ns.Utils:Print("That is not a normal bag slot.")
-        return
-    end
-
-    local itemData = ns.Rules:GetItemData(bag, slot)
-    if not itemData then
-        ns.Utils:Print("Item data is still loading. Try again in a moment.")
-        return
-    end
-
-    ns.DB:SetNeverSell(itemData.itemID, itemData.itemName, true)
-    ns.Utils:Print(itemData.itemLink .. " added to Never Sell.")
+    local itemName = ns.Utils:GetSafeItemName(itemLink) or ns.DB:GetItemName(itemID)
+    ns.DB:SetNeverSell(itemID, itemName, true)
+    ns.Utils:Print((itemLink or itemName or ("item:" .. tostring(itemID))) .. " added to Never Sell.")
     if ns.Settings then
         ns.Settings:RefreshLists()
+    end
+    if ns.Merchant and ns.Utils:IsMerchantOpen() then
+        ns.Merchant:Refresh()
     end
 end
 

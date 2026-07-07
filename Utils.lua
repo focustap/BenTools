@@ -39,7 +39,8 @@ end
 function ns.Utils:IsNormalBag(bag)
     local backpack = Enum and Enum.BagIndex and Enum.BagIndex.Backpack or 0
     local normalBags = Constants and Constants.InventoryConstants and Constants.InventoryConstants.NumBagSlots or 4
-    return type(bag) == "number" and bag >= backpack and bag <= normalBags
+    local reagentBag = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag or (normalBags + 1)
+    return type(bag) == "number" and (bag >= backpack and bag <= normalBags or bag == reagentBag)
 end
 
 function ns.Utils:GetNormalBagRange()
@@ -48,9 +49,72 @@ function ns.Utils:GetNormalBagRange()
     return backpack, normalBags
 end
 
+function ns.Utils:GetPlayerBagIDs()
+    local bagIDs = {}
+    local firstBag, lastBag = self:GetNormalBagRange()
+    for bag = firstBag, lastBag do
+        bagIDs[#bagIDs + 1] = bag
+    end
+
+    local reagentBag = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag or (lastBag + 1)
+    if reagentBag and reagentBag > lastBag then
+        bagIDs[#bagIDs + 1] = reagentBag
+    end
+
+    return bagIDs
+end
+
 function ns.Utils:GetContainerItemLink(bag, slot)
     local info = C_Container.GetContainerItemInfo(bag, slot)
     return info and info.hyperlink
+end
+
+function ns.Utils:GetSafeItemName(item)
+    if not item then
+        return nil
+    end
+    local name = C_Item.GetItemNameByID and C_Item.GetItemNameByID(item)
+    if name then
+        return name
+    end
+    local itemName = C_Item.GetItemInfo(item)
+    return itemName
+end
+
+function ns.Utils:GetMouseoverItemLink()
+    if GameTooltip and GameTooltip.GetItem then
+        local _, link = GameTooltip:GetItem()
+        if link then
+            return link
+        end
+    end
+
+    local focus = GetMouseFoci and GetMouseFoci()
+    local button = focus and focus[1] or GetMouseFocus()
+    if not button then
+        return nil
+    end
+
+    if button.GetItemLocation then
+        local location = button:GetItemLocation()
+        if location and location.IsBagAndSlot and location:IsBagAndSlot() then
+            local bag, slot = location:GetBagAndSlot()
+            return self:GetContainerItemLink(bag, slot)
+        end
+    end
+
+    if button.GetBagID and button.GetID then
+        return self:GetContainerItemLink(button:GetBagID(), button:GetID())
+    end
+
+    if button.GetItem then
+        local item = button:GetItem()
+        if type(item) == "string" then
+            return item
+        end
+    end
+
+    return button.itemLink or button.link or nil
 end
 
 function ns.Utils:GetItemInfoSafe(item)

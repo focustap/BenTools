@@ -11,8 +11,7 @@ function ns.Scanner:ScanBags()
         pending = false,
     }
 
-    local firstBag, lastBag = ns.Utils:GetNormalBagRange()
-    for bag = firstBag, lastBag do
+    for _, bag in ipairs(ns.Utils:GetPlayerBagIDs()) do
         local slots = C_Container.GetContainerNumSlots(bag) or 0
         for slot = 1, slots do
             local itemData, pendingReason = ns.Rules:GetItemData(bag, slot)

@@ -313,8 +313,18 @@ function ns.QueueRinger:HandleProposalShow()
         return
     end
 
+    if self.currentLFGProposalID and self.currentLFGProposalID ~= proposalID then
+        ClearMatchingKeys(self.activeSignatures, "lfg:")
+    end
+
     local queueType = queueName or "Dungeon/Raid Finder"
     local signature = string.format("lfg:%s:%s:%s:%s", tostring(proposalID), tostring(proposalTypeID), tostring(subtypeID), tostring(queueType))
+    if self.currentLFGProposalID == proposalID and self.activeSignatures[signature] then
+        Debug("Duplicate LFG proposal ignored for proposalID " .. tostring(proposalID))
+        return
+    end
+
+    self.currentLFGProposalID = proposalID
     Debug("State transition WAITING -> READY for " .. queueType)
     self:NotifyReady(signature, queueType, "LFG_PROPOSAL_SHOW", false)
 end
@@ -322,6 +332,7 @@ end
 function ns.QueueRinger:HandleProposalClosed()
     self:EnsureConfig()
     ClearMatchingKeys(self.activeSignatures, "lfg:")
+    self.currentLFGProposalID = nil
 end
 
 function ns.QueueRinger:HandleBattlefieldStatus()
