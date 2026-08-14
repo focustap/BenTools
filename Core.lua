@@ -123,6 +123,12 @@ function ns.Core:ShowQueueStatus()
     end
 end
 
+function ns.Core:ShowMostRecentKey()
+    if ns.QueueRinger and ns.QueueRinger.PrintMostRecentKey then
+        ns.QueueRinger:PrintMostRecentKey()
+    end
+end
+
 function ns.Core:TestQueueNotification()
     if ns.QueueRinger then
         ns.QueueRinger:CreateTestEvent()
@@ -167,6 +173,38 @@ function ns.Core:ShowVersionStatus()
     if ns.db and ns.db.profile then
         ns.Utils:Print("Repair Reminder: " .. (ns.db.profile.repairReminderEnabled and "enabled" or "disabled"))
         ns.Utils:Print("Repair Threshold: " .. tostring(ns.db.profile.repairReminderThreshold or 50) .. "%")
+        ns.Utils:Print("Cursor Ring: " .. (ns.db.profile.cursorRingEnabled and "enabled" or "disabled"))
+        ns.Utils:Print("Inspect Item Level: " .. (ns.db.profile.inspectItemLevelEnabled and "enabled" or "disabled"))
+    end
+end
+
+function ns.Core:ToggleCursorRing()
+    if ns.CursorRing then
+        ns.CursorRing:Toggle()
+    end
+    if ns.MainWindow then
+        ns.MainWindow:Refresh()
+    end
+end
+
+function ns.Core:SetCursorRingEnabled(enabled)
+    if ns.CursorRing then
+        ns.CursorRing:SetEnabled(enabled)
+    end
+    if ns.MainWindow then
+        ns.MainWindow:Refresh()
+    end
+end
+
+function ns.Core:ToggleInspectItemLevel()
+    if ns.InspectItemLevel then
+        ns.InspectItemLevel:Toggle()
+    end
+end
+
+function ns.Core:SetInspectItemLevelEnabled(enabled)
+    if ns.InspectItemLevel then
+        ns.InspectItemLevel:SetEnabled(enabled)
     end
 end
 
@@ -191,9 +229,16 @@ function ns.Core:PrintHelp()
     ns.Utils:Print("/bt queue on - Enable Queue Ringer")
     ns.Utils:Print("/bt queue off - Disable Queue Ringer")
     ns.Utils:Print("/bt queue debug - Toggle Queue Ringer debug")
+    ns.Utils:Print("/bt key - Show the most recent premade-group sign-up")
     ns.Utils:Print("/bt mplus - Open the Mythic+ Finder")
     ns.Utils:Print("/bt mythic - Mythic+ Finder alias")
     ns.Utils:Print("/bt finder - Mythic+ Finder alias")
+    ns.Utils:Print("/bt cursor - Toggle the cursor ring")
+    ns.Utils:Print("/bt cursor on - Enable the cursor ring")
+    ns.Utils:Print("/bt cursor off - Disable the cursor ring")
+    ns.Utils:Print("/bt inspect - Toggle inspect item level")
+    ns.Utils:Print("/bt inspect on - Enable inspect item level")
+    ns.Utils:Print("/bt inspect off - Disable inspect item level")
     ns.Utils:Print("/bt mplus search - Refresh Mythic+ search results")
     ns.Utils:Print("/bt mplus status - Show Mythic+ Finder status")
     ns.Utils:Print("/bt mplus dump - Dump live Mythic+ search result diagnostics")
@@ -255,6 +300,20 @@ local function SlashHandler(message)
         end
     elseif message:match("^autosell") then
         HandleAutoSellSlash(rawMessage:gsub("^%s*[Aa][Uu][Tt][Oo][Ss][Ee][Ll][Ll]%s*", ""))
+    elseif message == "cursor" then
+        ns.Core:ToggleCursorRing()
+    elseif message == "cursor on" then
+        ns.Core:SetCursorRingEnabled(true)
+    elseif message == "cursor off" then
+        ns.Core:SetCursorRingEnabled(false)
+    elseif message == "inspect" then
+        ns.Core:ToggleInspectItemLevel()
+    elseif message == "inspect on" then
+        ns.Core:SetInspectItemLevelEnabled(true)
+    elseif message == "inspect off" then
+        ns.Core:SetInspectItemLevelEnabled(false)
+    elseif message == "key" then
+        ns.Core:ShowMostRecentKey()
     elseif message == "list" then
         ns.Core:ShowRuleList()
     elseif message == "always" then
@@ -279,6 +338,12 @@ frame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 frame:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         ns.DB:Initialize()
+        if ns.CursorRing then
+            ns.CursorRing:Initialize()
+        end
+        if ns.InspectItemLevel then
+            ns.InspectItemLevel:Initialize()
+        end
         ns.Settings:Initialize()
         ns.ContextMenu:Initialize()
         if ns.MainWindow then

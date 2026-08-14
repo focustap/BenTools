@@ -88,6 +88,7 @@ function ns.MainWindow:Refresh()
     local premadeEnabled = ns.db and ns.db.queueRinger and ns.db.queueRinger.notifyPremade
     local readyCheckEnabled = ns.db and ns.db.queueRinger and ns.db.queueRinger.notifyReadyCheck
     local addonEnabled = ns.db and ns.db.profile and ns.db.profile.enabled
+    local cursorRingEnabled = ns.db and ns.db.profile and ns.db.profile.cursorRingEnabled
     local repairEnabled = ns.db and ns.db.profile and ns.db.profile.repairReminderEnabled
     local repairThreshold = ns.db and ns.db.profile and ns.db.profile.repairReminderThreshold or 50
     local version = "unknown"
@@ -114,9 +115,14 @@ function ns.MainWindow:Refresh()
         self.mplusLastSearch:SetText("Last search: never")
     end
     self.versionStatus:SetText("Version: " .. tostring(version or "unknown"))
+    self.cursorRingStatus:SetText("Cursor Ring: " .. (cursorRingEnabled and "Enabled" or "Disabled"))
 
     if self.queueToggleButton then
         self.queueToggleButton:SetText(queueEnabled and "Disable Queue Ringer" or "Enable Queue Ringer")
+    end
+
+    if self.cursorRingToggleButton then
+        self.cursorRingToggleButton:SetText(cursorRingEnabled and "Disable Cursor Ring" or "Enable Cursor Ring")
     end
 end
 
@@ -238,17 +244,23 @@ function ns.MainWindow:Create()
 
     AddSectionTitle(frame, "General", 18, -326)
     self.versionStatus = AddStatusLine(frame, 18, -348)
+    self.cursorRingStatus = AddStatusLine(frame, 18, -366)
     AddActionButton(frame, "Open BenTools Settings", 18, -372, function()
         if ns.Core then
             ns.Core:OpenSettings()
         end
     end)
-    AddActionButton(frame, "Reload UI", 18, -402, function()
+    self.cursorRingToggleButton = AddActionButton(frame, "Enable Cursor Ring", 18, -402, function()
+        if ns.Core then
+            ns.Core:ToggleCursorRing()
+        end
+    end)
+    AddActionButton(frame, "Reload UI", 18, -432, function()
         if ReloadUI then
             ReloadUI()
         end
     end)
-    AddActionButton(frame, "Show Version / Status", 18, -432, function()
+    AddActionButton(frame, "Show Version / Status", 18, -462, function()
         if ns.Core then
             ns.Core:ShowVersionStatus()
         end

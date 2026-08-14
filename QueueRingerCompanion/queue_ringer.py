@@ -51,8 +51,26 @@ SINGLE_INSTANCE_MUTEX = "Local\\BenToolsQueueRingerCompanion"
 def load_json(path, default):
     if not os.path.exists(path):
         return default
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = handle.read()
+    except OSError:
+        return default
+
+    if not raw or not raw.strip("\x00\r\n\t "):
+        return default
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        try:
+            backup_path = path + ".corrupt"
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            os.replace(path, backup_path)
+        except OSError:
+            pass
+        return default
 
 
 def save_json(path, payload):
@@ -81,6 +99,8 @@ def load_config():
             raise FileNotFoundError(
                 f"Missing config file: {CONFIG_PATH}. Copy config.example.json to config.json and fill it in."
             )
+    if not isinstance(config, dict):
+        raise RuntimeError(f"Config file is invalid: {CONFIG_PATH}")
     config.setdefault("enabled", True)
     config.setdefault("discordWebhookUrl", "")
     config.setdefault("mention", "")
@@ -97,7 +117,7 @@ def load_config():
 
 
 def load_state():
-    return load_json(
+    state = load_json(
         STATE_PATH,
         {
             "lastDetectedAt": 0,
@@ -106,6 +126,13 @@ def load_state():
             "lastWindowTitle": "",
         },
     )
+    if not isinstance(state, dict):
+        state = {}
+    state.setdefault("lastDetectedAt", 0)
+    state.setdefault("lastNotificationAt", 0)
+    state.setdefault("lastScore", 0.0)
+    state.setdefault("lastWindowTitle", "")
+    return state
 
 
 def build_discord_payload(mention):

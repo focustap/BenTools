@@ -13,13 +13,16 @@ local function AddLabel(parent, text, x, offsetY)
     return label
 end
 
-local function AddCheckbox(parent, text, key, x)
+local function AddCheckbox(parent, text, key, x, onChange)
     local checkbox = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
     checkbox:SetPoint("TOPLEFT", x or 16, y)
     checkbox.Text:SetText(text)
     checkbox:SetChecked(ns.db.profile[key])
     checkbox:SetScript("OnClick", function(self)
         ns.db.profile[key] = self:GetChecked() and true or false
+        if onChange then
+            onChange(self)
+        end
         if ns.Merchant and ns.Utils:IsMerchantOpen() then
             ns.Merchant:Refresh()
         end
@@ -233,6 +236,19 @@ function ns.Settings:Initialize()
     y = -50
     AddCheckbox(content, "Enable addon", "enabled")
     AddCheckbox(content, "Debug output", "debug")
+    AddCheckbox(content, "Show cursor ring", "cursorRingEnabled", 16, function()
+        if ns.CursorRing then
+            ns.CursorRing:Refresh()
+        end
+        if ns.MainWindow then
+            ns.MainWindow:Refresh()
+        end
+    end)
+    AddCheckbox(content, "Show inspect item level", "inspectItemLevelEnabled", 16, function()
+        if ns.InspectItemLevel then
+            ns.InspectItemLevel:Refresh()
+        end
+    end)
     AddCheckbox(content, "Automatically sell gray items", "sellGray")
     AddCheckbox(content, "Repair reminder popup", "repairReminderEnabled")
     AddEditBox(content, "Repair reminder threshold (%)", "repairReminderThreshold")

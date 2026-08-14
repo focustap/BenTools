@@ -7,6 +7,8 @@ local defaults = {
     profile = {
         enabled = true,
         debug = false,
+        cursorRingEnabled = false,
+        inspectItemLevelEnabled = true,
         sellGray = true,
         repairReminderEnabled = true,
         repairReminderThreshold = 50,
@@ -43,6 +45,8 @@ local defaults = {
         lastEventId = "",
         lastQueueType = "",
         lastEventAt = 0,
+        lastAcceptedListing = "",
+        lastAcceptedAt = 0,
         bridgeMethod = "SCREEN_BEACON",
     },
     mythicPlusFinder = {

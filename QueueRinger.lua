@@ -226,6 +226,9 @@ function ns.QueueRinger:ShowPopup(eventData)
     if eventData.source == "READY_CHECK" then
         title = "Ready Check"
         subtitle = "Your party or raid is waiting on you."
+    elseif eventData.source == "PREMADE_ACCEPTED" then
+        title = "Group Joined"
+        subtitle = "Most recent sign-up updated."
     end
 
     popup.title:SetText(title)
@@ -246,6 +249,43 @@ function ns.QueueRinger:ShowPopup(eventData)
     end
 
     return true
+end
+
+function ns.QueueRinger:BuildPremadeListingLabel(searchResultID, groupName)
+    if groupName and groupName ~= "" then
+        return groupName
+    end
+
+    if C_LFGList and C_LFGList.GetSearchResultInfo then
+        local info = C_LFGList.GetSearchResultInfo(searchResultID)
+        local activityID = info and (info.activityID or (type(info.activityIDs) == "table" and info.activityIDs[1])) or nil
+        if activityID and C_LFGList.GetActivityInfoTable then
+            local ok, activityInfo = pcall(C_LFGList.GetActivityInfoTable, activityID, nil, info and info.isWarMode)
+            if ok and type(activityInfo) == "table" then
+                return activityInfo.fullName or activityInfo.shortName or activityInfo.name or "Premade Group"
+            end
+        end
+    end
+
+    return "Premade Group"
+end
+
+function ns.QueueRinger:SetMostRecentAcceptedListing(label)
+    local config = ns.db and ns.db.queueRinger
+    if not config or not label or label == "" then
+        return
+    end
+    config.lastAcceptedListing = label
+    config.lastAcceptedAt = GetUnixTime()
+end
+
+function ns.QueueRinger:PrintMostRecentKey()
+    local config = ns.db and ns.db.queueRinger
+    if not config or not config.lastAcceptedListing or config.lastAcceptedListing == "" then
+        ns.Utils:Print("Most Recent Sign-Up: none")
+        return
+    end
+    ns.Utils:Print("Most Recent Sign-Up: " .. tostring(config.lastAcceptedListing))
 end
 
 function ns.QueueRinger:HandleReadyCheck(initiatorName)
@@ -370,15 +410,18 @@ function ns.QueueRinger:HandlePremadeApplicationStatus(searchResultID, newStatus
     self:EnsureConfig()
 
     if newStatus == "invited" then
-        local label = groupName
-        if not label or label == "" then
-            label = "Premade Group"
-        end
-
+        local label = self:BuildPremadeListingLabel(searchResultID, groupName)
         local queueType = "Premade Invite: " .. label
         local signature = string.format("premade:%s:%s:%s", tostring(searchResultID), tostring(newStatus), tostring(label))
         Debug("Premade application status " .. tostring(oldStatus) .. " -> " .. tostring(newStatus) .. " for " .. label)
         self:NotifyReady(signature, queueType, "LFG_LIST_APPLICATION_STATUS_UPDATED", false)
+    elseif newStatus == "inviteaccepted" then
+        local label = self:BuildPremadeListingLabel(searchResultID, groupName)
+        self:SetMostRecentAcceptedListing(label)
+        local queueType = "Most Recent Sign-Up: " .. label
+        local signature = string.format("premadeaccepted:%s:%s", tostring(searchResultID), tostring(label))
+        Debug("Premade application accepted for " .. label)
+        self:NotifyReady(signature, queueType, "PREMADE_ACCEPTED", false)
     elseif oldStatus == "invited" or newStatus == "inviteaccepted" or newStatus == "invitedeclined" or newStatus == "cancelled" or newStatus == "declined" then
         ClearMatchingKeys(self.activeSignatures, "premade:" .. tostring(searchResultID) .. ":")
     end
@@ -401,6 +444,7 @@ function ns.QueueRinger:PrintStatus()
     Print("Popup visible: " .. ((self.popup and self.popup:IsShown()) and "yes" or "no"))
     Print("Last event ID: " .. (config.lastEventId ~= "" and config.lastEventId or "none"))
     Print("Last queue type: " .. (config.lastQueueType ~= "" and config.lastQueueType or "none"))
+    Print("Most Recent Sign-Up: " .. ((config.lastAcceptedListing and config.lastAcceptedListing ~= "") and config.lastAcceptedListing or "none"))
     Print("Debug: " .. (config.debug and "on" or "off"))
 end
 

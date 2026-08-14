@@ -12,6 +12,8 @@ Scanner.lua
 Merchant.lua
 Repair.lua
 QueueRinger.lua
+CursorRing.lua
+InspectItemLevel.lua
 MythicPlusFinderFilters.lua
 MythicPlusFinderRanking.lua
 MythicPlusFinderApplications.lua
