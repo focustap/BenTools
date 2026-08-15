@@ -132,7 +132,7 @@ function ns.MainWindow:Create()
     end
 
     local frame = CreateFrame("Frame", "BenToolsMainWindow", UIParent, "BasicFrameTemplateWithInset")
-    frame:SetSize(520, 590)
+    frame:SetSize(520, 620)
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
     frame:EnableMouse(true)
@@ -263,6 +263,11 @@ function ns.MainWindow:Create()
     AddActionButton(frame, "Show Version / Status", 18, -462, function()
         if ns.Core then
             ns.Core:ShowVersionStatus()
+        end
+    end)
+    AddActionButton(frame, "Quest Manager", 18, -492, function()
+        if ns.Core then
+            ns.Core:OpenQuestManager()
         end
     end)
 

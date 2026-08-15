@@ -7,6 +7,7 @@ Use `/bt` to open the panel.
 - `/bt`
 - `/bt help`
 - `/bt settings`
+- `/bt quests`
 - `/reload`
 
 ## Auto Sell
@@ -48,6 +49,13 @@ Notes:
 - `/bt mplus dump`
 - `/bt mplus debug`
 - `/bt mplus preset <name>`
+
+## Quest Manager
+
+- `/bt quests`
+- Groups accepted quests by expansion.
+- Search, filter, select, and abandon selected quests after confirmation.
+- Campaign, important, and legendary quests are protected unless included explicitly.
 
 ## Companion
 

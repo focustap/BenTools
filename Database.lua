@@ -103,6 +103,10 @@ local defaults = {
             y = 80,
         },
     },
+    questManager = {
+        includeCampaign = false,
+        collapsed = {},
+    },
     alwaysSell = {},
     neverSell = {},
     names = {},

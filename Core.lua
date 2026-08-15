@@ -46,6 +46,14 @@ function ns.Core:OpenMythicPlusFinder()
     end
 end
 
+function ns.Core:OpenQuestManager()
+    if ns.QuestManager then
+        ns.QuestManager:Open()
+    else
+        ns.Utils:Print("Quest Manager module did not load.")
+    end
+end
+
 function ns.Core:RunSellPreview()
     self:RunAutoSellScan()
 end
@@ -233,6 +241,7 @@ function ns.Core:PrintHelp()
     ns.Utils:Print("/bt mplus - Open the Mythic+ Finder")
     ns.Utils:Print("/bt mythic - Mythic+ Finder alias")
     ns.Utils:Print("/bt finder - Mythic+ Finder alias")
+    ns.Utils:Print("/bt quests - Open the Quest Manager")
     ns.Utils:Print("/bt cursor - Toggle the cursor ring")
     ns.Utils:Print("/bt cursor on - Enable the cursor ring")
     ns.Utils:Print("/bt cursor off - Disable the cursor ring")
@@ -298,6 +307,12 @@ local function SlashHandler(message)
         if ns.MythicPlusFinder then
             ns.MythicPlusFinder:HandleSlash(rawMessage:gsub("^%s*[Ff][Ii][Nn][Dd][Ee][Rr]%s*", ""))
         end
+    elseif message == "quests" or message == "quest" or message == "qm" then
+        ns.Core:OpenQuestManager()
+    elseif message == "quests debug" or message == "quest debug" or message == "qm debug" then
+        if ns.QuestManager and ns.QuestManager.DebugExpansionData then
+            ns.QuestManager:DebugExpansionData()
+        end
     elseif message:match("^autosell") then
         HandleAutoSellSlash(rawMessage:gsub("^%s*[Aa][Uu][Tt][Oo][Ss][Ee][Ll][Ll]%s*", ""))
     elseif message == "cursor" then
@@ -345,6 +360,9 @@ frame:SetScript("OnEvent", function(_, event, arg1)
             ns.InspectItemLevel:Initialize()
         end
         ns.Settings:Initialize()
+        if ns.QuestManager then
+            ns.QuestManager:Initialize()
+        end
         ns.ContextMenu:Initialize()
         if ns.MainWindow then
             ns.MainWindow:Create()

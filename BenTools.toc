@@ -20,6 +20,7 @@ MythicPlusFinderApplications.lua
 MythicPlusFinder.lua
 MythicPlusFinderUI.lua
 ContextMenu.lua
+QuestManager.lua
 Settings.lua
 MainWindow.lua
 Core.lua
