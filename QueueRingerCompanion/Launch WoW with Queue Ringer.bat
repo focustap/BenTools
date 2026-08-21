@@ -19,8 +19,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-start "" "%~dp0Start Queue Ringer.bat"
-timeout /t 1 /nobreak >nul
+call "%~dp0Start Queue Ringer.bat"
+if errorlevel 1 (
+    echo [BenTools Queue Ringer] Queue Ringer could not be started, so WoW was not launched.
+    echo.
+    pause
+    exit /b 1
+)
 
 py -3 "queue_ringer.py" --launch-wow
 if errorlevel 1 (
