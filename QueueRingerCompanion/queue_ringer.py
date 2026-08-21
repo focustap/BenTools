@@ -50,7 +50,7 @@ SINGLE_INSTANCE_MUTEX = "Local\\BenToolsQueueRingerCompanion"
 # Set this to the deployed BenRinger API origin when it is available. Do not
 # put a guessed production URL here. Development may instead use
 # benToolsPhoneApiBaseUrl in the local config.json file.
-BENRINGER_API_BASE_URL = ""
+BENRINGER_API_BASE_URL = "https://cwpruhtfdmwxthkekkfi.supabase.co/functions/v1/benringer-api"
 BENRINGER_NOTIFICATION_PATH = "/notify"
 
 
