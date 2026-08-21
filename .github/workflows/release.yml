@@ -1,0 +1,31 @@
+name: Build release packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build release packages
+        shell: pwsh
+        run: |
+          $outputDirectory = Join-Path $env:GITHUB_WORKSPACE 'release-artifacts'
+          .\Build-Release.ps1 -OutputDirectory $outputDirectory
+
+      - name: Create GitHub release and attach packages
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/BenTools-Addon.zip
+            release-artifacts/BenTools-Companion.zip
+            release-artifacts/BenTools-Full-Package.zip
