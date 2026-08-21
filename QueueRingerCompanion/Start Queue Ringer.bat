@@ -41,9 +41,26 @@ if errorlevel 1 (
     )
 )
 
-py -3 "queue_ringer.py"
+for /f "usebackq delims=" %%P in (`py -3 -c "import sys; print(sys.executable)"`) do set "PYTHON_EXE=%%P"
+if not defined PYTHON_EXE (
+    echo [BenTools Queue Ringer] Could not locate the Python executable.
+    echo.
+    pause
+    exit /b 1
+)
+
+for %%P in ("!PYTHON_EXE!") do set "PYTHONW_EXE=%%~dpPpythonw.exe"
+if not exist "!PYTHONW_EXE!" (
+    echo [BenTools Queue Ringer] pythonw.exe was not found next to the Python executable.
+    echo Reinstall Python for Windows, including the standard library and launcher.
+    echo.
+    pause
+    exit /b 1
+)
+
+start "" "!PYTHONW_EXE!" "%~dp0queue_ringer.py"
 if errorlevel 1 (
-    echo [BenTools Queue Ringer] Queue Ringer did not start cleanly.
+    echo [BenTools Queue Ringer] Queue Ringer could not be started.
     echo.
     pause
     exit /b 1

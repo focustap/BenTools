@@ -119,6 +119,10 @@ try {
 @echo off
 call "%~dp0BenTools Queue Ringer\Start Queue Ringer.bat"
 '@ | Set-Content -LiteralPath (Join-Path $fullPackageRoot 'Start Queue Ringer.bat') -Encoding ascii
+    @'
+@echo off
+call "%~dp0BenTools Queue Ringer\Launch WoW with Queue Ringer.bat"
+'@ | Set-Content -LiteralPath (Join-Path $fullPackageRoot 'Launch WoW with Queue Ringer.bat') -Encoding ascii
     Write-FullPackageReadme (Join-Path $fullPackageRoot 'README.txt')
 
     foreach ($zipPath in @($addonZip, $companionZip, $fullPackageZip)) {
