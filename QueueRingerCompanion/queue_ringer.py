@@ -47,6 +47,12 @@ START_BATCH_NAME = "Start Queue Ringer.bat"
 LAUNCH_BATCH_NAME = "Launch WoW with Queue Ringer.bat"
 STARTUP_SHORTCUT_NAME = "BenTools Queue Ringer.lnk"
 SINGLE_INSTANCE_MUTEX = "Local\\BenToolsQueueRingerCompanion"
+# Set this to the deployed BenRinger Worker origin when it is available, for
+# example "https://benringer-notify.example.workers.dev". Do not put a guessed
+# production URL here. Development may instead use benToolsPhoneApiBaseUrl in
+# the local config.json file.
+BENRINGER_WORKER_BASE_URL = ""
+BENRINGER_NOTIFICATION_PATH = "/notify"
 
 
 def load_json(path, default):
@@ -102,12 +108,15 @@ def load_config():
             )
     if not isinstance(config, dict):
         raise RuntimeError(f"Config file is invalid: {CONFIG_PATH}")
-    config.setdefault("enabled", True)
+    legacy_discord_enabled = config.pop("enabled", True)
     config.setdefault("discordWebhookUrl", "")
+    config.setdefault("discordEnabled", legacy_discord_enabled)
     config.setdefault("mention", "")
-    config.setdefault("ntfyEnabled", False)
-    config.setdefault("ntfyTopic", "")
-    config.setdefault("ntfyServer", "https://ntfy.sh")
+    config.setdefault("benToolsPhoneEnabled", False)
+    config.setdefault("benToolsPhonePairingCode", "")
+    # This optional key is intentionally not exposed in the UI. It is only for
+    # development against a non-production BenRinger service.
+    config.setdefault("benToolsPhoneApiBaseUrl", "")
     config.setdefault("pollIntervalMs", 350)
     config.setdefault("cooldownSeconds", 45)
     config.setdefault("matchThreshold", 0.88)
@@ -194,21 +203,30 @@ def send_webhook(config, payload, log_fn):
     raise last_error
 
 
-def send_ntfy_notification(config, message, log_fn, title="WoW Queue Ready"):
-    topic = (config.get("ntfyTopic", "") or "").strip()
-    if not topic:
-        raise RuntimeError("ntfy topic is missing from config.json")
+def get_benringer_notification_url(config):
+    base_url = (config.get("benToolsPhoneApiBaseUrl", "") or BENRINGER_WORKER_BASE_URL).strip().rstrip("/")
+    if not base_url:
+        raise RuntimeError("BenRinger Worker URL is not configured yet")
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise RuntimeError("BenRinger API base URL must be an HTTPS URL")
+    return base_url + BENRINGER_NOTIFICATION_PATH
 
-    server = (config.get("ntfyServer", "") or "https://ntfy.sh").strip().rstrip("/")
-    if not server:
-        server = "https://ntfy.sh"
-    topic_path = urllib.parse.quote(topic, safe="")
+
+def send_bentools_phone_notification(config, log_fn):
+    pairing_code = (config.get("benToolsPhonePairingCode", "") or "").strip()
+    if not pairing_code:
+        raise RuntimeError("BenTools Phone pairing/device code is missing from config.json")
+
+    payload = {
+        "pairingCode": pairing_code,
+        "eventType": "queue_ready",
+    }
     request = urllib.request.Request(
-        f"{server}/{topic_path}",
-        data=message.encode("utf-8"),
+        get_benringer_notification_url(config),
+        data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Content-Type": "text/plain; charset=utf-8",
-            "Title": title,
+            "Content-Type": "application/json",
             "User-Agent": "BenTools-QueueRinger/2.1",
         },
         method="POST",
@@ -216,9 +234,9 @@ def send_ntfy_notification(config, message, log_fn, title="WoW Queue Ready"):
 
     with urllib.request.urlopen(request, timeout=10) as response:
         status = getattr(response, "status", response.getcode())
-        if status not in (200, 201):
-            raise RuntimeError(f"Unexpected ntfy response: HTTP {status}")
-    log_fn(f"ntfy notification sent successfully (HTTP {status}).")
+        if status < 200 or status >= 300:
+            raise RuntimeError(f"Unexpected BenRinger response: HTTP {status}")
+    log_fn(f"BenTools Phone notification sent successfully (HTTP {status}).")
 
 
 def make_beacon_template(scale=1.0):
@@ -444,6 +462,7 @@ class Watcher(threading.Thread):
     def __init__(self, config, state, event_queue):
         super().__init__(daemon=True)
         self.config = config
+        self.config_lock = threading.Lock()
         self.state = state
         self.event_queue = event_queue
         self.stop_event = threading.Event()
@@ -454,15 +473,24 @@ class Watcher(threading.Thread):
     def emit(self, kind, payload=None):
         self.event_queue.put((kind, payload or {}))
 
+    def update_config(self, config):
+        with self.config_lock:
+            self.config = config.copy()
+
+    def get_config(self):
+        with self.config_lock:
+            return self.config.copy()
+
     def run(self):
-        self.emit("log", {"message": f"Watcher started. Webhook configured: {mask_webhook(self.config.get('discordWebhookUrl', ''))}"})
-        poll_interval = max(100, int(self.config.get("pollIntervalMs", 350) or 350)) / 1000.0
-        threshold = float(self.config.get("matchThreshold", 0.88) or 0.88)
-        confirm_frames = max(1, int(self.config.get("confirmFrames", 2) or 2))
-        cooldown = max(10, int(self.config.get("cooldownSeconds", 45) or 45))
+        self.emit("log", {"message": f"Watcher started. Webhook configured: {mask_webhook(self.get_config().get('discordWebhookUrl', ''))}"})
 
         while not self.stop_event.is_set():
             try:
+                config = self.get_config()
+                poll_interval = max(100, int(config.get("pollIntervalMs", 350) or 350)) / 1000.0
+                threshold = float(config.get("matchThreshold", 0.88) or 0.88)
+                confirm_frames = max(1, int(config.get("confirmFrames", 2) or 2))
+                cooldown = max(10, int(config.get("cooldownSeconds", 45) or 45))
                 window_info = find_wow_window()
                 if not window_info:
                     self.emit("status", {"wow": "not_found"})
@@ -492,42 +520,34 @@ class Watcher(threading.Thread):
                                 self.emit("log", {"message": "Queue banner detected again, but still inside cooldown window."})
                                 self.notified_for_signal = True
                             else:
-                                queue_message = (
-                                    "BenTools Queue Ringer spotted the in-game ready banner.\n\n"
-                                    "Your queue is ready. Jump back in."
-                                )
-                                discord_enabled = bool(self.config.get("enabled", True))
-                                ntfy_enabled = bool(self.config.get("ntfyEnabled", False))
+                                discord_enabled = bool(config.get("discordEnabled", True))
+                                bentools_phone_enabled = bool(config.get("benToolsPhoneEnabled", False))
                                 discord_sent = not discord_enabled
-                                ntfy_sent = not ntfy_enabled
+                                bentools_phone_sent = not bentools_phone_enabled
 
                                 if discord_enabled:
                                     try:
-                                        payload = build_discord_payload(self.config.get("mention", ""))
-                                        send_webhook(self.config, payload, lambda message: self.emit("log", {"message": message}))
+                                        payload = build_discord_payload(config.get("mention", ""))
+                                        send_webhook(config, payload, lambda message: self.emit("log", {"message": message}))
                                         discord_sent = True
                                     except Exception as exc:
                                         self.emit("log", {"message": f"Discord notification failed: {exc}"})
 
-                                if ntfy_enabled:
+                                if bentools_phone_enabled:
                                     try:
-                                        send_ntfy_notification(
-                                            self.config,
-                                            queue_message,
-                                            lambda message: self.emit("log", {"message": message}),
-                                        )
-                                        ntfy_sent = True
+                                        send_bentools_phone_notification(config, lambda message: self.emit("log", {"message": message}))
+                                        bentools_phone_sent = True
                                     except Exception as exc:
-                                        self.emit("log", {"message": f"ntfy notification failed: {exc}"})
+                                        self.emit("log", {"message": f"BenTools Phone notification failed: {exc}"})
 
-                                if (discord_enabled and discord_sent) or (ntfy_enabled and ntfy_sent):
+                                if (discord_enabled and discord_sent) or (bentools_phone_enabled and bentools_phone_sent):
                                     self.state["lastNotificationAt"] = now
                                     save_json(STATE_PATH, self.state)
                                     self.notified_for_signal = True
                                     self.emit("log", {"message": "Queue banner confirmed. Queue-ready notifications sent."})
                                     self.emit("notified", {})
 
-                                if self.config.get("saveDebugFrame"):
+                                if config.get("saveDebugFrame"):
                                     debug_path = os.path.join(SCRIPT_DIR, "last_detection.png")
                                     frame_image.save(debug_path)
                                     self.emit("log", {"message": f"Saved debug frame to {debug_path}"})
@@ -604,7 +624,7 @@ class QueueRingerApp:
         ttk.Label(header, text="BenTools Queue Ringer", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
-            text="Watches the bright BenTools queue banner in the WoW window and pushes Discord and ntfy alerts to your phone.",
+            text="Watches the bright BenTools queue banner in the WoW window and pushes Discord and BenTools Phone alerts.",
             style="Muted.TLabel",
         ).pack(anchor="w", pady=(6, 0))
 
@@ -619,30 +639,29 @@ class QueueRingerApp:
         self.webhook_var = tk.StringVar(value=self.config.get("discordWebhookUrl", ""))
         ttk.Entry(left, textvariable=self.webhook_var, width=72).grid(row=1, column=0, sticky="ew", pady=(6, 10))
 
-        ttk.Label(left, text="Mention (optional)", style="Header.TLabel").grid(row=2, column=0, sticky="w")
+        self.discord_enabled_var = tk.BooleanVar(value=bool(self.config.get("discordEnabled", True)))
+        ttk.Checkbutton(left, text="Enable Discord notifications", variable=self.discord_enabled_var).grid(row=2, column=0, sticky="w")
+
+        ttk.Label(left, text="Mention (optional)", style="Header.TLabel").grid(row=3, column=0, sticky="w", pady=(8, 0))
         self.mention_var = tk.StringVar(value=self.config.get("mention", ""))
-        ttk.Entry(left, textvariable=self.mention_var, width=36).grid(row=3, column=0, sticky="w", pady=(6, 10))
+        ttk.Entry(left, textvariable=self.mention_var, width=36).grid(row=4, column=0, sticky="w", pady=(6, 10))
 
-        self.ntfy_enabled_var = tk.BooleanVar(value=bool(self.config.get("ntfyEnabled", False)))
-        ttk.Checkbutton(left, text="Enable ntfy notifications", variable=self.ntfy_enabled_var).grid(row=4, column=0, sticky="w")
-        ttk.Label(left, text="ntfy topic", style="Header.TLabel").grid(row=5, column=0, sticky="w", pady=(8, 0))
-        self.ntfy_topic_var = tk.StringVar(value=self.config.get("ntfyTopic", ""))
-        ttk.Entry(left, textvariable=self.ntfy_topic_var, width=72).grid(row=6, column=0, sticky="ew", pady=(6, 10))
+        self.bentools_phone_enabled_var = tk.BooleanVar(value=bool(self.config.get("benToolsPhoneEnabled", False)))
+        ttk.Checkbutton(left, text="Enable BenTools Phone Notifications", variable=self.bentools_phone_enabled_var).grid(row=5, column=0, sticky="w")
+        ttk.Label(left, text="BenTools Phone pairing/device code", style="Header.TLabel").grid(row=6, column=0, sticky="w", pady=(8, 0))
+        self.bentools_phone_pairing_code_var = tk.StringVar(value=self.config.get("benToolsPhonePairingCode", ""))
+        ttk.Entry(left, textvariable=self.bentools_phone_pairing_code_var, width=72).grid(row=7, column=0, sticky="ew", pady=(6, 10))
 
-        ttk.Label(left, text="ntfy server (optional)", style="Header.TLabel").grid(row=7, column=0, sticky="w")
-        self.ntfy_server_var = tk.StringVar(value=self.config.get("ntfyServer", "https://ntfy.sh"))
-        ttk.Entry(left, textvariable=self.ntfy_server_var, width=72).grid(row=8, column=0, sticky="ew", pady=(6, 10))
-
-        ttk.Label(left, text="WoW / Battle.net path (optional)", style="Header.TLabel").grid(row=9, column=0, sticky="w")
+        ttk.Label(left, text="WoW / Battle.net path (optional)", style="Header.TLabel").grid(row=8, column=0, sticky="w")
         launcher_row = ttk.Frame(left, style="Card.TFrame")
-        launcher_row.grid(row=10, column=0, sticky="ew", pady=(6, 10))
+        launcher_row.grid(row=9, column=0, sticky="ew", pady=(6, 10))
         launcher_row.columnconfigure(0, weight=1)
         self.game_path_var = tk.StringVar(value=self.config.get("gameLauncherPath", ""))
         ttk.Entry(launcher_row, textvariable=self.game_path_var).grid(row=0, column=0, sticky="ew")
         ttk.Button(launcher_row, text="Browse", command=self.browse_game_path).grid(row=0, column=1, padx=(8, 0))
 
         row = ttk.Frame(left, style="Card.TFrame")
-        row.grid(row=11, column=0, sticky="w")
+        row.grid(row=10, column=0, sticky="w")
 
         self.threshold_var = tk.StringVar(value=str(self.config.get("matchThreshold", 0.88)))
         self.cooldown_var = tk.StringVar(value=str(self.config.get("cooldownSeconds", 45)))
@@ -659,7 +678,7 @@ class QueueRingerApp:
             ttk.Entry(group, textvariable=variable, width=12).pack(anchor="w", pady=(4, 0))
 
         toggles = ttk.Frame(left, style="Card.TFrame")
-        toggles.grid(row=12, column=0, sticky="w", pady=(14, 0))
+        toggles.grid(row=11, column=0, sticky="w", pady=(14, 0))
 
         self.startup_var = tk.BooleanVar(value=self.startup_actual)
         self.auto_watch_var = tk.BooleanVar(value=bool(self.config.get("startWatchingAutomatically", False)))
@@ -674,7 +693,7 @@ class QueueRingerApp:
 
         ttk.Button(right, text="Save", command=self.save_config).pack(fill="x")
         ttk.Button(right, text="Send Discord Test", command=self.send_test).pack(fill="x", pady=(8, 0))
-        ttk.Button(right, text="Test ntfy notification", command=self.send_ntfy_test).pack(fill="x", pady=(8, 0))
+        ttk.Button(right, text="Test BenTools Notification", command=self.send_bentools_phone_test).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Start Watching", command=self.start_watcher).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Stop", command=self.stop_watcher).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Capture Preview", command=self.capture_preview).pack(fill="x", pady=(8, 0))
@@ -829,10 +848,10 @@ class QueueRingerApp:
     def save_config(self):
         try:
             self.config["discordWebhookUrl"] = self.webhook_var.get().strip()
+            self.config["discordEnabled"] = self.discord_enabled_var.get()
             self.config["mention"] = self.mention_var.get().strip()
-            self.config["ntfyEnabled"] = self.ntfy_enabled_var.get()
-            self.config["ntfyTopic"] = self.ntfy_topic_var.get().strip()
-            self.config["ntfyServer"] = self.ntfy_server_var.get().strip() or "https://ntfy.sh"
+            self.config["benToolsPhoneEnabled"] = self.bentools_phone_enabled_var.get()
+            self.config["benToolsPhonePairingCode"] = self.bentools_phone_pairing_code_var.get().strip()
             self.config["gameLauncherPath"] = self.game_path_var.get().strip()
             self.config["matchThreshold"] = float(self.threshold_var.get().strip() or "0.88")
             self.config["cooldownSeconds"] = int(self.cooldown_var.get().strip() or "45")
@@ -844,8 +863,10 @@ class QueueRingerApp:
             self.config["startWithWindows"] = is_startup_enabled()
             self.startup_var.set(self.config["startWithWindows"])
             save_json(CONFIG_PATH, self.config)
+            if self.watcher and self.watcher.is_alive():
+                self.watcher.update_config(self.config)
             self.refresh_status_labels()
-            self.log("Saved configuration.")
+            self.log("Saved configuration and updated the running watcher.")
         except Exception as exc:
             self.startup_var.set(is_startup_enabled())
             messagebox.showerror(APP_TITLE, f"Could not save configuration:\n{exc}")
@@ -869,17 +890,12 @@ class QueueRingerApp:
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Discord test failed:\n{exc}")
 
-    def send_ntfy_test(self):
+    def send_bentools_phone_test(self):
         self.save_config()
         try:
-            send_ntfy_notification(
-                self.config,
-                "Your ntfy notification settings are configured correctly.",
-                self.log,
-                title="WoW Queue Ready",
-            )
+            send_bentools_phone_notification(self.config, self.log)
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"ntfy test failed:\n{exc}")
+            messagebox.showerror(APP_TITLE, f"BenTools Phone notification test failed:\n{exc}")
 
     def start_watcher(self):
         self.save_config()

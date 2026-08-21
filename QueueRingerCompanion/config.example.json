@@ -1,10 +1,9 @@
 {
-  "enabled": true,
+  "discordEnabled": true,
   "discordWebhookUrl": "",
   "mention": "",
-  "ntfyEnabled": false,
-  "ntfyTopic": "",
-  "ntfyServer": "https://ntfy.sh",
+  "benToolsPhoneEnabled": false,
+  "benToolsPhonePairingCode": "",
   "pollIntervalMs": 350,
   "cooldownSeconds": 45,
   "matchThreshold": 0.88,

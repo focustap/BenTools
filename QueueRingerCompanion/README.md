@@ -1,6 +1,6 @@
 # Queue Ringer Companion
 
-This companion watches the World of Warcraft window for the BenTools Queue Ringer banner and sends Discord webhook and/or ntfy notifications.
+This companion watches the World of Warcraft window for the BenTools Queue Ringer banner and sends Discord webhook and/or BenTools Phone notifications.
 
 ## Why this bridge exists
 
@@ -9,13 +9,13 @@ World of Warcraft addons cannot make arbitrary HTTP requests. Queue Ringer there
 1. BenTools detects a queue-ready event in game.
 2. BenTools shows a bright top-center banner with a distinctive color beacon.
 3. This companion watches the WoW window for that banner.
-4. The companion sends configured Discord webhook and ntfy notifications.
+4. The companion sends to each enabled provider independently: Discord and/or BenTools Phone Notifications.
 
 SavedVariables are not used as the real-time bridge because WoW does not continuously flush them to disk while you play.
 
 ## Files
 
-- `queue_ringer.py` - watcher UI plus Discord and ntfy senders
+- `queue_ringer.py` - watcher UI plus Discord and BenTools Phone notification senders
 - `Start Queue Ringer.bat` - double-click launcher for the live Python source
 - `Launch WoW with Queue Ringer.bat` - convenience launcher for Queue Ringer plus WoW/Battle.net
 - `config.example.json` - sample configuration
@@ -25,7 +25,7 @@ SavedVariables are not used as the real-time bridge because WoW does not continu
 ## Setup
 
 1. Copy `config.example.json` to `config.json`.
-2. Fill in your Discord webhook URL and/or enable ntfy, then enter an ntfy topic. The optional ntfy server defaults to `https://ntfy.sh`.
+2. Enable either provider as desired. Discord uses its existing webhook URL. For BenTools Phone Notifications, enable the provider and enter the pairing/device code from BenRinger.
 3. Double-click `Start Queue Ringer.bat`.
 
 That batch file:
@@ -47,7 +47,9 @@ python .\queue_ringer.py
 python .\queue_ringer.py --test
 ```
 
-Use the **Test ntfy notification** button in the companion to verify the configured ntfy topic and server.
+Use the **Test BenTools Notification** button in the companion to verify the configured pairing/device code. It sends the same `queue_ready` event used for a detected queue pop.
+
+The public configuration does not require an API URL or secret. Once deployed, set the centralized `BENRINGER_WORKER_BASE_URL` constant in `queue_ringer.py` to the Worker origin. For development against a non-production service only, `config.json` may include `benToolsPhoneApiBaseUrl` instead.
 
 ## Start With Windows
 

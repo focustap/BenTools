@@ -64,3 +64,5 @@ Queue Ringer companion files:
 - `QueueRingerCompanion\queue_ringer.py`
 - `QueueRingerCompanion\Start Queue Ringer.bat`
 - `QueueRingerCompanion\Launch WoW with Queue Ringer.bat`
+
+The companion can notify each enabled provider independently: Discord webhooks and BenTools Phone Notifications. See `QueueRingerCompanion\README.md` for pairing and setup.
