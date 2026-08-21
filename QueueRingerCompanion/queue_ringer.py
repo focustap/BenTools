@@ -47,11 +47,10 @@ START_BATCH_NAME = "Start Queue Ringer.bat"
 LAUNCH_BATCH_NAME = "Launch WoW with Queue Ringer.bat"
 STARTUP_SHORTCUT_NAME = "BenTools Queue Ringer.lnk"
 SINGLE_INSTANCE_MUTEX = "Local\\BenToolsQueueRingerCompanion"
-# Set this to the deployed BenRinger Worker origin when it is available, for
-# example "https://benringer-notify.example.workers.dev". Do not put a guessed
-# production URL here. Development may instead use benToolsPhoneApiBaseUrl in
-# the local config.json file.
-BENRINGER_WORKER_BASE_URL = ""
+# Set this to the deployed BenRinger API origin when it is available. Do not
+# put a guessed production URL here. Development may instead use
+# benToolsPhoneApiBaseUrl in the local config.json file.
+BENRINGER_API_BASE_URL = ""
 BENRINGER_NOTIFICATION_PATH = "/notify"
 
 
@@ -204,9 +203,9 @@ def send_webhook(config, payload, log_fn):
 
 
 def get_benringer_notification_url(config):
-    base_url = (config.get("benToolsPhoneApiBaseUrl", "") or BENRINGER_WORKER_BASE_URL).strip().rstrip("/")
+    base_url = (config.get("benToolsPhoneApiBaseUrl", "") or BENRINGER_API_BASE_URL).strip().rstrip("/")
     if not base_url:
-        raise RuntimeError("BenRinger Worker URL is not configured yet")
+        raise RuntimeError("BenRinger API URL is not configured yet")
     parsed = urllib.parse.urlparse(base_url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise RuntimeError("BenRinger API base URL must be an HTTPS URL")

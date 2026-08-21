@@ -49,7 +49,7 @@ python .\queue_ringer.py --test
 
 Use the **Test BenTools Notification** button in the companion to verify the configured pairing/device code. It sends the same `queue_ready` event used for a detected queue pop.
 
-The public configuration does not require an API URL or secret. Once deployed, set the centralized `BENRINGER_WORKER_BASE_URL` constant in `queue_ringer.py` to the Worker origin. For development against a non-production service only, `config.json` may include `benToolsPhoneApiBaseUrl` instead.
+The public configuration does not require an API URL or secret. Once deployed, set the centralized `BENRINGER_API_BASE_URL` constant in `queue_ringer.py` to the BenRinger API origin. For development against a non-production service only, `config.json` may include `benToolsPhoneApiBaseUrl` instead.
 
 ## Start With Windows
 
