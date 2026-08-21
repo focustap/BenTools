@@ -1,6 +1,6 @@
 # Queue Ringer Companion
 
-This companion watches the World of Warcraft window for the BenTools Queue Ringer banner and sends a Discord webhook notification.
+This companion watches the World of Warcraft window for the BenTools Queue Ringer banner and sends Discord webhook and/or ntfy notifications.
 
 ## Why this bridge exists
 
@@ -9,13 +9,13 @@ World of Warcraft addons cannot make arbitrary HTTP requests. Queue Ringer there
 1. BenTools detects a queue-ready event in game.
 2. BenTools shows a bright top-center banner with a distinctive color beacon.
 3. This companion watches the WoW window for that banner.
-4. The companion sends a Discord webhook notification.
+4. The companion sends configured Discord webhook and ntfy notifications.
 
 SavedVariables are not used as the real-time bridge because WoW does not continuously flush them to disk while you play.
 
 ## Files
 
-- `queue_ringer.py` - watcher UI and Discord sender
+- `queue_ringer.py` - watcher UI plus Discord and ntfy senders
 - `Start Queue Ringer.bat` - double-click launcher for the live Python source
 - `Launch WoW with Queue Ringer.bat` - convenience launcher for Queue Ringer plus WoW/Battle.net
 - `config.example.json` - sample configuration
@@ -25,7 +25,7 @@ SavedVariables are not used as the real-time bridge because WoW does not continu
 ## Setup
 
 1. Copy `config.example.json` to `config.json`.
-2. Fill in your Discord webhook URL.
+2. Fill in your Discord webhook URL and/or enable ntfy, then enter an ntfy topic. The optional ntfy server defaults to `https://ntfy.sh`.
 3. Double-click `Start Queue Ringer.bat`.
 
 That batch file:
@@ -41,11 +41,13 @@ You can also start it manually:
 python .\queue_ringer.py
 ```
 
-4. Test the webhook:
+4. Test the Discord webhook:
 
 ```powershell
 python .\queue_ringer.py --test
 ```
+
+Use the **Test ntfy notification** button in the companion to verify the configured ntfy topic and server.
 
 ## Start With Windows
 

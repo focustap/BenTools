@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
@@ -104,6 +105,9 @@ def load_config():
     config.setdefault("enabled", True)
     config.setdefault("discordWebhookUrl", "")
     config.setdefault("mention", "")
+    config.setdefault("ntfyEnabled", False)
+    config.setdefault("ntfyTopic", "")
+    config.setdefault("ntfyServer", "https://ntfy.sh")
     config.setdefault("pollIntervalMs", 350)
     config.setdefault("cooldownSeconds", 45)
     config.setdefault("matchThreshold", 0.88)
@@ -188,6 +192,33 @@ def send_webhook(config, payload, log_fn):
             time.sleep(1.5 * attempt)
 
     raise last_error
+
+
+def send_ntfy_notification(config, message, log_fn, title="WoW Queue Ready"):
+    topic = (config.get("ntfyTopic", "") or "").strip()
+    if not topic:
+        raise RuntimeError("ntfy topic is missing from config.json")
+
+    server = (config.get("ntfyServer", "") or "https://ntfy.sh").strip().rstrip("/")
+    if not server:
+        server = "https://ntfy.sh"
+    topic_path = urllib.parse.quote(topic, safe="")
+    request = urllib.request.Request(
+        f"{server}/{topic_path}",
+        data=message.encode("utf-8"),
+        headers={
+            "Content-Type": "text/plain; charset=utf-8",
+            "Title": title,
+            "User-Agent": "BenTools-QueueRinger/2.1",
+        },
+        method="POST",
+    )
+
+    with urllib.request.urlopen(request, timeout=10) as response:
+        status = getattr(response, "status", response.getcode())
+        if status not in (200, 201):
+            raise RuntimeError(f"Unexpected ntfy response: HTTP {status}")
+    log_fn(f"ntfy notification sent successfully (HTTP {status}).")
 
 
 def make_beacon_template(scale=1.0):
@@ -461,13 +492,40 @@ class Watcher(threading.Thread):
                                 self.emit("log", {"message": "Queue banner detected again, but still inside cooldown window."})
                                 self.notified_for_signal = True
                             else:
-                                payload = build_discord_payload(self.config.get("mention", ""))
-                                send_webhook(self.config, payload, lambda message: self.emit("log", {"message": message}))
-                                self.state["lastNotificationAt"] = now
-                                save_json(STATE_PATH, self.state)
-                                self.notified_for_signal = True
-                                self.emit("log", {"message": "Queue banner confirmed. Discord notification sent."})
-                                self.emit("notified", {})
+                                queue_message = (
+                                    "BenTools Queue Ringer spotted the in-game ready banner.\n\n"
+                                    "Your queue is ready. Jump back in."
+                                )
+                                discord_enabled = bool(self.config.get("enabled", True))
+                                ntfy_enabled = bool(self.config.get("ntfyEnabled", False))
+                                discord_sent = not discord_enabled
+                                ntfy_sent = not ntfy_enabled
+
+                                if discord_enabled:
+                                    try:
+                                        payload = build_discord_payload(self.config.get("mention", ""))
+                                        send_webhook(self.config, payload, lambda message: self.emit("log", {"message": message}))
+                                        discord_sent = True
+                                    except Exception as exc:
+                                        self.emit("log", {"message": f"Discord notification failed: {exc}"})
+
+                                if ntfy_enabled:
+                                    try:
+                                        send_ntfy_notification(
+                                            self.config,
+                                            queue_message,
+                                            lambda message: self.emit("log", {"message": message}),
+                                        )
+                                        ntfy_sent = True
+                                    except Exception as exc:
+                                        self.emit("log", {"message": f"ntfy notification failed: {exc}"})
+
+                                if (discord_enabled and discord_sent) or (ntfy_enabled and ntfy_sent):
+                                    self.state["lastNotificationAt"] = now
+                                    save_json(STATE_PATH, self.state)
+                                    self.notified_for_signal = True
+                                    self.emit("log", {"message": "Queue banner confirmed. Queue-ready notifications sent."})
+                                    self.emit("notified", {})
 
                                 if self.config.get("saveDebugFrame"):
                                     debug_path = os.path.join(SCRIPT_DIR, "last_detection.png")
@@ -546,7 +604,7 @@ class QueueRingerApp:
         ttk.Label(header, text="BenTools Queue Ringer", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
-            text="Watches the bright BenTools queue banner in the WoW window and pushes Discord alerts to your phone.",
+            text="Watches the bright BenTools queue banner in the WoW window and pushes Discord and ntfy alerts to your phone.",
             style="Muted.TLabel",
         ).pack(anchor="w", pady=(6, 0))
 
@@ -565,16 +623,26 @@ class QueueRingerApp:
         self.mention_var = tk.StringVar(value=self.config.get("mention", ""))
         ttk.Entry(left, textvariable=self.mention_var, width=36).grid(row=3, column=0, sticky="w", pady=(6, 10))
 
-        ttk.Label(left, text="WoW / Battle.net path (optional)", style="Header.TLabel").grid(row=4, column=0, sticky="w")
+        self.ntfy_enabled_var = tk.BooleanVar(value=bool(self.config.get("ntfyEnabled", False)))
+        ttk.Checkbutton(left, text="Enable ntfy notifications", variable=self.ntfy_enabled_var).grid(row=4, column=0, sticky="w")
+        ttk.Label(left, text="ntfy topic", style="Header.TLabel").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        self.ntfy_topic_var = tk.StringVar(value=self.config.get("ntfyTopic", ""))
+        ttk.Entry(left, textvariable=self.ntfy_topic_var, width=72).grid(row=6, column=0, sticky="ew", pady=(6, 10))
+
+        ttk.Label(left, text="ntfy server (optional)", style="Header.TLabel").grid(row=7, column=0, sticky="w")
+        self.ntfy_server_var = tk.StringVar(value=self.config.get("ntfyServer", "https://ntfy.sh"))
+        ttk.Entry(left, textvariable=self.ntfy_server_var, width=72).grid(row=8, column=0, sticky="ew", pady=(6, 10))
+
+        ttk.Label(left, text="WoW / Battle.net path (optional)", style="Header.TLabel").grid(row=9, column=0, sticky="w")
         launcher_row = ttk.Frame(left, style="Card.TFrame")
-        launcher_row.grid(row=5, column=0, sticky="ew", pady=(6, 10))
+        launcher_row.grid(row=10, column=0, sticky="ew", pady=(6, 10))
         launcher_row.columnconfigure(0, weight=1)
         self.game_path_var = tk.StringVar(value=self.config.get("gameLauncherPath", ""))
         ttk.Entry(launcher_row, textvariable=self.game_path_var).grid(row=0, column=0, sticky="ew")
         ttk.Button(launcher_row, text="Browse", command=self.browse_game_path).grid(row=0, column=1, padx=(8, 0))
 
         row = ttk.Frame(left, style="Card.TFrame")
-        row.grid(row=6, column=0, sticky="w")
+        row.grid(row=11, column=0, sticky="w")
 
         self.threshold_var = tk.StringVar(value=str(self.config.get("matchThreshold", 0.88)))
         self.cooldown_var = tk.StringVar(value=str(self.config.get("cooldownSeconds", 45)))
@@ -591,7 +659,7 @@ class QueueRingerApp:
             ttk.Entry(group, textvariable=variable, width=12).pack(anchor="w", pady=(4, 0))
 
         toggles = ttk.Frame(left, style="Card.TFrame")
-        toggles.grid(row=7, column=0, sticky="w", pady=(14, 0))
+        toggles.grid(row=12, column=0, sticky="w", pady=(14, 0))
 
         self.startup_var = tk.BooleanVar(value=self.startup_actual)
         self.auto_watch_var = tk.BooleanVar(value=bool(self.config.get("startWatchingAutomatically", False)))
@@ -606,6 +674,7 @@ class QueueRingerApp:
 
         ttk.Button(right, text="Save", command=self.save_config).pack(fill="x")
         ttk.Button(right, text="Send Discord Test", command=self.send_test).pack(fill="x", pady=(8, 0))
+        ttk.Button(right, text="Test ntfy notification", command=self.send_ntfy_test).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Start Watching", command=self.start_watcher).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Stop", command=self.stop_watcher).pack(fill="x", pady=(8, 0))
         ttk.Button(right, text="Capture Preview", command=self.capture_preview).pack(fill="x", pady=(8, 0))
@@ -761,6 +830,9 @@ class QueueRingerApp:
         try:
             self.config["discordWebhookUrl"] = self.webhook_var.get().strip()
             self.config["mention"] = self.mention_var.get().strip()
+            self.config["ntfyEnabled"] = self.ntfy_enabled_var.get()
+            self.config["ntfyTopic"] = self.ntfy_topic_var.get().strip()
+            self.config["ntfyServer"] = self.ntfy_server_var.get().strip() or "https://ntfy.sh"
             self.config["gameLauncherPath"] = self.game_path_var.get().strip()
             self.config["matchThreshold"] = float(self.threshold_var.get().strip() or "0.88")
             self.config["cooldownSeconds"] = int(self.cooldown_var.get().strip() or "45")
@@ -796,6 +868,18 @@ class QueueRingerApp:
             send_webhook(self.config, payload, self.log)
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Discord test failed:\n{exc}")
+
+    def send_ntfy_test(self):
+        self.save_config()
+        try:
+            send_ntfy_notification(
+                self.config,
+                "Your ntfy notification settings are configured correctly.",
+                self.log,
+                title="WoW Queue Ready",
+            )
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"ntfy test failed:\n{exc}")
 
     def start_watcher(self):
         self.save_config()
